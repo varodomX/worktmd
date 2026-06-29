@@ -1083,9 +1083,6 @@ export default function TimeTracker() {
                 <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-md">
                   ระบบการเข้าและออกเวลางาน
                 </h1>
-                <p className="text-sm text-blue-100 drop-shadow-sm">
-                  วอร์ดม ศรีใสตั้งแต่ 1 พฤษภาคม 2569 ถึง 31 พฤษภาคม 2569
-                </p>
               </>
             )}
           </div>

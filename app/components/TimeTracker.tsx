@@ -233,6 +233,9 @@ export default function TimeTracker() {
     return match ? parseInt(match[1]) : 0;
   };
 
+  const getThaiDateLabel = (day: number): string =>
+    THAI_DATES[day - 1] || `${day} พฤษภาคม 2569`;
+
   // Parse time from various formats
   const parseTime = (timeValue: any): string => {
     if (!timeValue) return '';
@@ -355,11 +358,9 @@ export default function TimeTracker() {
 
     // Find missing dates in May
     const missingDates: string[] = [];
-    const dayNames = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
-    
     for (let day = 1; day <= 31; day++) {
       if (!daysWorked.has(day)) {
-        missingDates.push(`${day} พฤษภาคม 2569`);
+        missingDates.push(getThaiDateLabel(day));
       }
     }
 
@@ -403,7 +404,7 @@ export default function TimeTracker() {
     
     for (let day = 1; day <= 31; day++) {
       if (!daysWorked.has(day)) {
-        const dateStr = `${day} พฤษภาคม 2569`;
+        const dateStr = getThaiDateLabel(day);
         missingDates.push(dateStr);
         
         // Create empty row for missing date

@@ -538,7 +538,7 @@ export default function TimeTracker() {
       const values = [
         idx + 1,
         entry.name,
-        entry.isMissing ? '' : `${entry.date} ${entry.startTime}`.trim(),
+        entry.isMissing ? (entry.missingDateLabel || '') : `${entry.date} ${entry.startTime}`.trim(),
         entry.isMissing ? '' : `${entry.endDate} ${entry.endTime}`.trim(),
         formatTimeToThai(entry.hoursWorked || ''),
         entry.location,
@@ -762,11 +762,11 @@ export default function TimeTracker() {
     data.forEach((entry, index) => {
       const row = worksheet.getRow(index + 5);
       row.height = 24;
-      const fillColor = entry.isMissing ? 'FFFEE2E2' : 'FFFFFFCC';
+      const fillColor = 'FFFFFFCC';
       const values = [
         index + 1,
         entry.name,
-        entry.isMissing ? '' : `${entry.date} ${entry.startTime}`.trim(),
+        entry.isMissing ? (entry.missingDateLabel || '') : `${entry.date} ${entry.startTime}`.trim(),
         entry.isMissing ? '' : `${entry.endDate} ${entry.endTime}`.trim(),
         formatTimeToThai(entry.hoursWorked || ''),
         entry.location,
@@ -902,7 +902,7 @@ export default function TimeTracker() {
       const values = [
         idx + 1,
         entry.name,
-        entry.isMissing ? '' : entry.date,
+        entry.isMissing ? (entry.missingDateLabel || '') : entry.date,
         entry.isMissing ? '' : entry.startTime,
         entry.isMissing ? '' : entry.endDate,
         entry.isMissing ? '' : entry.endTime,
@@ -1003,11 +1003,11 @@ export default function TimeTracker() {
       font-weight: 700;
     }
     tr.missing td {
-      background: #fee2e2;
+      background: #fefce8;
       border-color: #000000;
     }
     tr.missing td.hours {
-      background: #fee2e2;
+      background: #fefce8;
     }
     .signature-footer {
       display: grid;
@@ -1235,7 +1235,7 @@ export default function TimeTracker() {
                         <>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.name}</td>
-                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.date}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? (entry.missingDateLabel || '') : entry.date}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.startTime}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endDate}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endTime}</td>

@@ -24,3 +24,43 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.missing-row > td {
+  background-color: #fee2e2 !important;
+}
+
+.missing-row:hover > td {
+  background-color: #fecaca !important;
+}
+
+.editing-row input {
+  background-color: #ffffff;
+  border-color: #6b7280;
+  color: #111827;
+  -webkit-text-fill-color: #111827;
+  color-scheme: light;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.editing-row input::-webkit-datetime-edit,
+.editing-row input::-webkit-datetime-edit-fields-wrapper,
+.editing-row input::-webkit-datetime-edit-hour-field,
+.editing-row input::-webkit-datetime-edit-minute-field,
+.editing-row input::-webkit-datetime-edit-second-field,
+.editing-row input::-webkit-datetime-edit-ampm-field,
+.editing-row input::-webkit-datetime-edit-text {
+  color: #111827;
+  -webkit-text-fill-color: #111827;
+}
+
+.editing-row input::placeholder {
+  color: #4b5563;
+  opacity: 1;
+}
+
+.editing-row input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+  outline: none;
+}

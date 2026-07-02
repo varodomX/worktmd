@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { Upload, Download, Edit2, Save, X, AlertCircle, FileText } from 'lucide-react';
@@ -103,6 +103,7 @@ interface ThaiMonthYear {
 
 export default function TimeTracker() {
   const [data, setData] = useState<TimeEntry[]>([]);
+  const dataRef = useRef<TimeEntry[]>([]);
   const [fileName, setFileName] = useState('');
   const [excelHeader, setExcelHeader] = useState<ExcelHeader>({ title: '', subtitle: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -127,6 +128,13 @@ export default function TimeTracker() {
     notes: ''
   });
   const selectedOperatorStaff = findSignatureStaff(selectedStaffName);
+
+  const setTrackedData = (entries: TimeEntry[]) => {
+    dataRef.current = entries;
+    setData(entries);
+  };
+
+  const getCurrentData = () => dataRef.current.length ? dataRef.current : data;
 
   // Parse Excel file
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,7 +210,7 @@ export default function TimeTracker() {
           setSelectedStaffName(firstOperatorStaff.name);
         }
 
-        setData(transformedData);
+        setTrackedData(transformedData);
         analyzeDataAndAddMissing(transformedData);
       } catch (error) {
         alert('Error reading file: ' + error);
@@ -508,7 +516,7 @@ export default function TimeTracker() {
       return dayA - dayB;
     });
 
-    setData(combinedData);
+    setTrackedData(combinedData);
 
     // Find days with less than 12 hours
     const shortDays = combinedData.filter(entry => {
@@ -542,7 +550,7 @@ export default function TimeTracker() {
   const saveEdit = () => {
     if (!editingId) return;
 
-    const updatedData = data.map(entry => {
+    const updatedData = getCurrentData().map(entry => {
       if (entry.id === editingId) {
         const updated = { ...entry, ...editValues };
         updated.startTime = normalizeTimeInput(updated.startTime);
@@ -561,7 +569,6 @@ export default function TimeTracker() {
       return entry;
     });
 
-    setData(updatedData);
     setEditingId(null);
     analyzeDataAndAddMissing(updatedData);
   };
@@ -574,6 +581,7 @@ export default function TimeTracker() {
 
   // Download modified data
   const downloadExcel = () => {
+    const exportData = getCurrentData();
     const escapeXml = (value: any) =>
       String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -606,7 +614,7 @@ export default function TimeTracker() {
       `<Row${height ? ` ss:Height="${height}"` : ''}>${cells.join('')}</Row>`;
 
     const headerRow = row(headers.map((header) => cell(header, 'Header')), 32);
-    const dataRows = data.map((entry, idx) => {
+    const dataRows = exportData.map((entry, idx) => {
       const style = entry.isMissing ? 'Missing' : 'Data';
       const hourStyle = entry.isMissing ? 'Missing' : 'Hours';
       const values = [
@@ -638,7 +646,7 @@ export default function TimeTracker() {
       { length: Math.max(0, footerStartRow - contentRowsBeforeFooter - 1) },
       () => '<Row ss:Height="18"></Row>'
     );
-    const operatorStaff = selectedOperatorStaff || data
+    const operatorStaff = selectedOperatorStaff || exportData
       .map((entry) => findSignatureStaff(entry.name))
       .find((staff): staff is SignatureStaff => Boolean(staff));
     const operatorName = operatorStaff ? `(${operatorStaff.name})` : '(.......................................................)';
@@ -760,6 +768,7 @@ export default function TimeTracker() {
   };
 
   const downloadExcelWithSignatures = async () => {
+    const exportData = getCurrentData();
     const headers = [
       'ลำดับ',
       'ชื่อ-นามสกุล',
@@ -777,7 +786,7 @@ export default function TimeTracker() {
     const columnWidths = [40, 110, 205, 205, 120, 90, 90, 90, 90, 90, 138, 115];
     const title = excelHeader.title || 'ระบบการเข้าและออกเวลางาน';
     const subtitle = excelHeader.subtitle || '';
-    const operatorStaff = selectedOperatorStaff || data
+    const operatorStaff = selectedOperatorStaff || exportData
       .map((entry) => findSignatureStaff(entry.name))
       .find((staff): staff is SignatureStaff => Boolean(staff));
 
@@ -833,7 +842,7 @@ export default function TimeTracker() {
       styleCell(cell, 'FF92D050', headerBorder, { ...sarabunBold, color: { argb: 'FF000000' } });
     });
 
-    data.forEach((entry, index) => {
+    exportData.forEach((entry, index) => {
       const row = worksheet.getRow(index + 5);
       row.height = 24;
       const fillColor = 'FFFFFFCC';
@@ -860,7 +869,7 @@ export default function TimeTracker() {
     });
 
     const tableStartRow = 4;
-    const tableEndRow = data.length + 4;
+    const tableEndRow = exportData.length + 4;
     const tableStartCol = 1;
     const tableEndCol = headers.length;
 
@@ -882,7 +891,7 @@ export default function TimeTracker() {
       }
     }
 
-    const contentRowsBeforeFooter = 4 + data.length;
+    const contentRowsBeforeFooter = 4 + exportData.length;
     const footerGapRows = 2;
     const footerStartRow = Math.max(22, contentRowsBeforeFooter + footerGapRows + 1);
     const operatorName = operatorStaff ? `(${operatorStaff.name})` : '(.......................................................)';
@@ -941,6 +950,7 @@ export default function TimeTracker() {
   };
 
   const downloadPDF = () => {
+    const exportData = getCurrentData();
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Please allow popups to export PDF');
@@ -972,7 +982,7 @@ export default function TimeTracker() {
       'บันทึกงาน/หมายเหตุ'
     ];
 
-    const rows = data.map((entry, idx) => {
+    const rows = exportData.map((entry, idx) => {
       const values = [
         idx + 1,
         entry.name,
@@ -997,7 +1007,7 @@ export default function TimeTracker() {
 
     const title = excelHeader.title || 'ระบบการเข้าและออกเวลางาน';
     const subtitle = excelHeader.subtitle || '';
-    const operatorStaff = selectedOperatorStaff || data
+    const operatorStaff = selectedOperatorStaff || exportData
       .map((entry) => findSignatureStaff(entry.name))
       .find((staff): staff is SignatureStaff => Boolean(staff));
     const signatureBlock = (staff: SignatureStaff | undefined, role: string, showRole = false) => {

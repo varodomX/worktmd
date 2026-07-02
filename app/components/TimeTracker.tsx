@@ -1318,124 +1318,66 @@ export default function TimeTracker() {
                 <tbody>
                   {data.map((entry, idx) => (
                     <tr key={entry.id} className={`transition ${editingId === entry.id ? 'editing-row' : ''} ${entry.isMissing ? 'missing-row' : 'hover:bg-yellow-100'}`}>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.name}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? (entry.missingDateLabel || '') : entry.date}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.startTime}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endDate}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endTime}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-blue-100 font-bold text-center text-sm text-gray-800">{formatTimeToThai(entry.hoursWorked || '')}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.location}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.latCheckin}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.lonCheckin}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.latCheckout}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.lonCheckout}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.workGroup}</td>
-                      <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.notes}</td>
-                      <td className="sticky right-0 z-10 border border-gray-400 px-3 py-2 bg-yellow-50 text-center shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.6)]">
-                        <button onClick={() => startEdit(entry)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1 transition mx-auto">
-                          <Edit2 className="w-3 h-3" />
-                          แก้ไข
-                        </button>
-                      </td>
+                      {editingId === entry.id ? (
+                        <>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.name || ''} onChange={(e) => setEditValues({ ...editValues, name: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.date || ''} onChange={(e) => setEditValues({ ...editValues, date: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="วันที่เข้า" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" inputMode="numeric" value={editValues.startTime || ''} onChange={(e) => setEditValues({ ...editValues, startTime: e.target.value })} onBlur={(e) => setEditValues({ ...editValues, startTime: normalizeTimeInput(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" placeholder="20:02:24" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.endDate || ''} onChange={(e) => setEditValues({ ...editValues, endDate: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="วันที่ออก" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" inputMode="numeric" value={editValues.endTime || ''} onChange={(e) => setEditValues({ ...editValues, endTime: e.target.value })} onBlur={(e) => setEditValues({ ...editValues, endTime: normalizeTimeInput(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-center" placeholder="08:13:16" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-blue-100 font-bold text-center text-sm text-gray-800">{formatTimeToThai(calculateHours(normalizeTimeInput(editValues.startTime || ''), normalizeTimeInput(editValues.endTime || '')))}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.location || ''} onChange={(e) => setEditValues({ ...editValues, location: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.latCheckin || ''} onChange={(e) => setEditValues({ ...editValues, latCheckin: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.lonCheckin || ''} onChange={(e) => setEditValues({ ...editValues, lonCheckin: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.latCheckout || ''} onChange={(e) => setEditValues({ ...editValues, latCheckout: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.lonCheckout || ''} onChange={(e) => setEditValues({ ...editValues, lonCheckout: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.workGroup || ''} onChange={(e) => setEditValues({ ...editValues, workGroup: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50"><input type="text" value={editValues.notes || ''} onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm" /></td>
+                          <td className="sticky right-0 z-10 border border-gray-400 px-3 py-2 bg-yellow-50 text-center shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.6)]">
+                            <div className="flex flex-col gap-1">
+                              <button onClick={duplicatePreviousRow} disabled={getEditingRowIndex() <= 0} className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed text-white px-2 py-1 rounded text-xs flex items-center gap-1 transition justify-center">
+                                <Copy className="w-3 h-3" />
+                                Duplicate
+                              </button>
+                              <button onClick={saveEdit} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1 transition justify-center">
+                                <Save className="w-3 h-3" />
+                                บันทึก
+                              </button>
+                              <button onClick={cancelEdit} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1 transition justify-center">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.name}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? (entry.missingDateLabel || '') : entry.date}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.startTime}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endDate}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endTime}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-blue-100 font-bold text-center text-sm text-gray-800">{formatTimeToThai(entry.hoursWorked || '')}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.location}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.latCheckin}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.lonCheckin}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.latCheckout}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.lonCheckout}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.workGroup}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.notes}</td>
+                          <td className="sticky right-0 z-10 border border-gray-400 px-3 py-2 bg-yellow-50 text-center shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.6)]">
+                            <button onClick={() => startEdit(entry)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1 transition mx-auto">
+                              <Edit2 className="w-3 h-3" />
+                              แก้ไข
+                            </button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {editingId && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-2xl border border-gray-300">
-                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-300 bg-white px-5 py-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">แก้ไขข้อมูล</h2>
-                    <p className="text-sm text-gray-600">{editValues.date || editValues.missingDateLabel || ''}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={duplicatePreviousRow}
-                      disabled={getEditingRowIndex() <= 0}
-                      className="flex items-center gap-2 rounded bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Duplicate จาก row ก่อนหน้า
-                    </button>
-                    <button onClick={cancelEdit} className="rounded p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900">
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 lg:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">ชื่อ-นามสกุล</span>
-                    <input type="text" value={editValues.name || ''} onChange={(e) => setEditValues({ ...editValues, name: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">วันที่เข้างาน</span>
-                    <input type="text" value={editValues.date || ''} onChange={(e) => setEditValues({ ...editValues, date: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">เวลาเข้างาน</span>
-                    <input type="text" inputMode="numeric" value={editValues.startTime || ''} onChange={(e) => setEditValues({ ...editValues, startTime: e.target.value })} onBlur={(e) => setEditValues({ ...editValues, startTime: normalizeTimeInput(e.target.value) })} className="w-full rounded border border-gray-400 px-3 py-2 text-center text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">วันที่ออกงาน</span>
-                    <input type="text" value={editValues.endDate || ''} onChange={(e) => setEditValues({ ...editValues, endDate: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">เวลาออกงาน</span>
-                    <input type="text" inputMode="numeric" value={editValues.endTime || ''} onChange={(e) => setEditValues({ ...editValues, endTime: e.target.value })} onBlur={(e) => setEditValues({ ...editValues, endTime: normalizeTimeInput(e.target.value) })} className="w-full rounded border border-gray-400 px-3 py-2 text-center text-gray-900" />
-                  </label>
-                  <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">รวมเวลางาน</span>
-                    <div className="text-base font-bold text-gray-900">
-                      {formatTimeToThai(calculateHours(normalizeTimeInput(editValues.startTime || ''), normalizeTimeInput(editValues.endTime || '')))}
-                    </div>
-                  </div>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">สถานที่</span>
-                    <input type="text" value={editValues.location || ''} onChange={(e) => setEditValues({ ...editValues, location: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">ละติจูด(เข้า)</span>
-                    <input type="text" value={editValues.latCheckin || ''} onChange={(e) => setEditValues({ ...editValues, latCheckin: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">ลองจิจูด(เข้า)</span>
-                    <input type="text" value={editValues.lonCheckin || ''} onChange={(e) => setEditValues({ ...editValues, lonCheckin: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">ละติจูด(ออก)</span>
-                    <input type="text" value={editValues.latCheckout || ''} onChange={(e) => setEditValues({ ...editValues, latCheckout: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">ลองจิจูด(ออก)</span>
-                    <input type="text" value={editValues.lonCheckout || ''} onChange={(e) => setEditValues({ ...editValues, lonCheckout: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">กลุ่มงาน</span>
-                    <input type="text" value={editValues.workGroup || ''} onChange={(e) => setEditValues({ ...editValues, workGroup: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                  <label className="block md:col-span-2 lg:col-span-3">
-                    <span className="mb-1 block text-sm font-bold text-gray-800">บันทึกงาน/หมายเหตุ</span>
-                    <input type="text" value={editValues.notes || ''} onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })} className="w-full rounded border border-gray-400 px-3 py-2 text-gray-900" />
-                  </label>
-                </div>
-
-                <div className="sticky bottom-0 flex justify-end gap-3 border-t border-gray-300 bg-white px-5 py-4">
-                  <button onClick={cancelEdit} className="flex items-center gap-2 rounded bg-gray-200 px-4 py-2 font-bold text-gray-800 hover:bg-gray-300">
-                    <X className="h-4 w-4" />
-                    ยกเลิก
-                  </button>
-                  <button onClick={saveEdit} className="flex items-center gap-2 rounded bg-green-600 px-5 py-2 font-bold text-white hover:bg-green-700">
-                    <Save className="h-4 w-4" />
-                    บันทึก
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

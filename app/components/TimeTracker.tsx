@@ -354,7 +354,14 @@ export default function TimeTracker() {
   };
 
   const normalizeTimeInput = (timeStr: string): string => {
-    const parts = String(timeStr || '').trim().split(':');
+    const trimmedTime = String(timeStr || '').trim();
+    const compactTimeMatch = trimmedTime.match(/^(\d{2})(\d{2})(\d{2})$/);
+    if (compactTimeMatch) {
+      const [, hours, minutes, seconds] = compactTimeMatch;
+      return normalizeTimeInput(`${hours}:${minutes}:${seconds}`);
+    }
+
+    const parts = trimmedTime.split(':');
     if (parts.length < 2) return timeStr;
 
     const [hours, minutes, seconds = '0'] = parts;
@@ -538,6 +545,8 @@ export default function TimeTracker() {
     const updatedData = data.map(entry => {
       if (entry.id === editingId) {
         const updated = { ...entry, ...editValues };
+        updated.startTime = normalizeTimeInput(updated.startTime);
+        updated.endTime = normalizeTimeInput(updated.endTime);
         updated.dayNumber = getDayNumber(updated.date) || updated.dayNumber;
         updated.hoursWorked = calculateHours(
           updated.startTime,

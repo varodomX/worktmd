@@ -74,19 +74,32 @@ const SUPERVISOR_STAFF: SignatureStaff = {
 const findSignatureStaff = (name?: string) =>
   STAFF_LIST.find((staff) => staff.name === (name || '').trim());
 
-const THAI_DATES = [
-  'จันทร์ 1 พฤษภาคม 2569', 'อังคาร 2 พฤษภาคม 2569', 'พุธ 3 พฤษภาคม 2569',
-  'พฤหัสบดี 4 พฤษภาคม 2569', 'ศุกร์ 5 พฤษภาคม 2569', 'เสาร์ 6 พฤษภาคม 2569',
-  'อาทิตย์ 7 พฤษภาคม 2569', 'จันทร์ 8 พฤษภาคม 2569', 'อังคาร 9 พฤษภาคม 2569',
-  'พุธ 10 พฤษภาคม 2569', 'พฤหัสบดี 11 พฤษภาคม 2569', 'ศุกร์ 12 พฤษภาคม 2569',
-  'เสาร์ 13 พฤษภาคม 2569', 'อาทิตย์ 14 พฤษภาคม 2569', 'จันทร์ 15 พฤษภาคม 2569',
-  'อังคาร 16 พฤษภาคม 2569', 'พุธ 17 พฤษภาคม 2569', 'พฤหัสบดี 18 พฤษภาคม 2569',
-  'ศุกร์ 19 พฤษภาคม 2569', 'เสาร์ 20 พฤษภาคม 2569', 'อาทิตย์ 21 พฤษภาคม 2569',
-  'จันทร์ 22 พฤษภาคม 2569', 'อังคาร 23 พฤษภาคม 2569', 'พุธ 24 พฤษภาคม 2569',
-  'พฤหัสบดี 25 พฤษภาคม 2569', 'ศุกร์ 26 พฤษภาคม 2569', 'เสาร์ 27 พฤษภาคม 2569',
-  'อาทิตย์ 28 พฤษภาคม 2569', 'จันทร์ 29 พฤษภาคม 2569', 'อังคาร 30 พฤษภาคม 2569',
-  'พุธ 31 พฤษภาคม 2569'
+const THAI_WEEKDAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const THAI_MONTHS = [
+  'มกราคม',
+  'กุมภาพันธ์',
+  'มีนาคม',
+  'เมษายน',
+  'พฤษภาคม',
+  'มิถุนายน',
+  'กรกฎาคม',
+  'สิงหาคม',
+  'กันยายน',
+  'ตุลาคม',
+  'พฤศจิกายน',
+  'ธันวาคม',
 ];
+const THAI_MONTH_TO_INDEX = THAI_MONTHS.reduce<Record<string, number>>((months, month, index) => {
+  months[month] = index + 1;
+  return months;
+}, {});
+const DEFAULT_THAI_YEAR = 2569;
+const DEFAULT_MONTH_INDEX = 5;
+
+interface ThaiMonthYear {
+  month: number;
+  year: number;
+}
 
 export default function TimeTracker() {
   const [data, setData] = useState<TimeEntry[]>([]);
@@ -233,8 +246,53 @@ export default function TimeTracker() {
     return match ? parseInt(match[1]) : 0;
   };
 
-  const getThaiDateLabel = (day: number): string =>
-    THAI_DATES[day - 1] || `${day} พฤษภาคม 2569`;
+  const parseThaiDateParts = (dateStr: string): (ThaiMonthYear & { day: number }) | null => {
+    const normalizedDate = String(dateStr || '').replace('เมษายนคม', 'เมษายน');
+    const monthPattern = THAI_MONTHS.join('|');
+    const match = normalizedDate.match(new RegExp(`(\\d{1,2})\\s+(${monthPattern})\\s+(\\d{4})`));
+
+    if (!match) return null;
+
+    return {
+      day: Number(match[1]),
+      month: THAI_MONTH_TO_INDEX[match[2]],
+      year: Number(match[3]),
+    };
+  };
+
+  const getDaysInThaiMonth = ({ month, year }: ThaiMonthYear): number =>
+    new Date(year - 543, month, 0).getDate();
+
+  const getThaiDateLabel = (day: number, period: ThaiMonthYear): string => {
+    const weekday = THAI_WEEKDAYS[new Date(period.year - 543, period.month - 1, day).getDay()];
+    const monthName = THAI_MONTHS[period.month - 1] || THAI_MONTHS[DEFAULT_MONTH_INDEX - 1];
+    return `${weekday} ${day} ${monthName} ${period.year}`;
+  };
+
+  const inferReportPeriod = (entries: TimeEntry[]): ThaiMonthYear => {
+    const monthYearCounts = new Map<string, ThaiMonthYear & { count: number }>();
+    const addDate = (dateStr: string) => {
+      const parts = parseThaiDateParts(dateStr);
+      if (!parts) return;
+      const key = `${parts.month}-${parts.year}`;
+      const current = monthYearCounts.get(key);
+      monthYearCounts.set(key, {
+        month: parts.month,
+        year: parts.year,
+        count: (current?.count || 0) + 1,
+      });
+    };
+
+    addDate(excelHeader.subtitle);
+    entries.forEach((entry) => {
+      if (!entry.isMissing) addDate(entry.date);
+    });
+
+    const mostCommonPeriod = Array.from(monthYearCounts.values())
+      .sort((a, b) => b.count - a.count)[0];
+
+    return mostCommonPeriod || { month: DEFAULT_MONTH_INDEX, year: DEFAULT_THAI_YEAR };
+  };
 
   // Parse time from various formats
   const parseTime = (timeValue: any): string => {
@@ -345,22 +403,25 @@ export default function TimeTracker() {
 
   // Analyze data for missing dates and short work days
   const analyzeData = (entries: TimeEntry[]) => {
+    const reportPeriod = inferReportPeriod(entries);
+    const daysInMonth = getDaysInThaiMonth(reportPeriod);
     // Extract day numbers from date strings
     const daysWorked = new Set<number>();
     entries.forEach(entry => {
       if (entry.isMissing) return;
       // Extract day number from date string like "เสาร์ 30 เมษายนคม 2569"
-      const dayNumber = entry.dayNumber || getDayNumber(entry.date);
-      if (dayNumber) {
+      const dateParts = parseThaiDateParts(entry.date);
+      const dayNumber = dateParts?.day || entry.dayNumber || getDayNumber(entry.date);
+      if (dayNumber && (!dateParts || (dateParts.month === reportPeriod.month && dateParts.year === reportPeriod.year))) {
         daysWorked.add(dayNumber);
       }
     });
 
-    // Find missing dates in May
+    // Find missing dates in the report month
     const missingDates: string[] = [];
-    for (let day = 1; day <= 31; day++) {
+    for (let day = 1; day <= daysInMonth; day++) {
       if (!daysWorked.has(day)) {
-        missingDates.push(getThaiDateLabel(day));
+        missingDates.push(getThaiDateLabel(day, reportPeriod));
       }
     }
 
@@ -389,27 +450,30 @@ export default function TimeTracker() {
   // Analyze and add missing date rows
   const analyzeDataAndAddMissing = (entries: TimeEntry[]) => {
     const baseEntries = entries.filter(entry => !entry.isMissing);
+    const reportPeriod = inferReportPeriod(baseEntries);
+    const daysInMonth = getDaysInThaiMonth(reportPeriod);
     // Extract day numbers from date strings
     const daysWorked = new Set<number>();
     baseEntries.forEach(entry => {
-      const dayNumber = entry.dayNumber || getDayNumber(entry.date);
-      if (dayNumber) {
+      const dateParts = parseThaiDateParts(entry.date);
+      const dayNumber = dateParts?.day || entry.dayNumber || getDayNumber(entry.date);
+      if (dayNumber && (!dateParts || (dateParts.month === reportPeriod.month && dateParts.year === reportPeriod.year))) {
         daysWorked.add(dayNumber);
       }
     });
 
-    // Find missing dates in May and create empty rows
+    // Find missing dates in the report month and create empty rows
     const missingDates: string[] = [];
     const missingEntries: TimeEntry[] = [];
     
-    for (let day = 1; day <= 31; day++) {
+    for (let day = 1; day <= daysInMonth; day++) {
       if (!daysWorked.has(day)) {
-        const dateStr = getThaiDateLabel(day);
+        const dateStr = getThaiDateLabel(day, reportPeriod);
         missingDates.push(dateStr);
         
         // Create empty row for missing date
         missingEntries.push({
-          id: `missing-${day}`,
+          id: `missing-${reportPeriod.year}-${reportPeriod.month}-${day}`,
           date: '',
           endDate: '',
           missingDateLabel: dateStr,
@@ -1331,4 +1395,3 @@ export default function TimeTracker() {
     </div>
   );
 }
-

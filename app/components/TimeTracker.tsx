@@ -25,6 +25,10 @@ interface TimeEntry {
   missingDateLabel?: string;
 }
 
+const isMissingEntry = (entry: TimeEntry) => Boolean(
+  entry.isMissing && !(entry.name && entry.date && entry.endDate && entry.startTime && entry.endTime && entry.hoursWorked)
+);
+
 interface AnalysisResult {
   missingDates: string[];
   shortDays: TimeEntry[];
@@ -110,6 +114,7 @@ export default function TimeTracker() {
   const [editValues, setEditValues] = useState<Partial<TimeEntry>>({});
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [showMissingDates, setShowMissingDates] = useState(false);
+  const [showMissingModal, setShowMissingModal] = useState(false);
   const [showShortDays, setShowShortDays] = useState(false);
   const [selectedStaffName, setSelectedStaffName] = useState('');
   const selectedOperatorStaff = findSignatureStaff(selectedStaffName);
@@ -196,7 +201,11 @@ export default function TimeTracker() {
         }
 
         setTrackedData(transformedData);
-        analyzeDataAndAddMissing(transformedData);
+        setEditingId(null);
+        setEditValues({});
+        const missingDates = analyzeData(transformedData);
+        setShowMissingModal(transformedData.length > 0 && missingDates.length > 0);
+        setShowMissingDates(false);
       } catch (error) {
         alert('Error reading file: ' + error);
         console.error(error);
@@ -278,7 +287,7 @@ export default function TimeTracker() {
 
     addDate(excelHeader.subtitle);
     entries.forEach((entry) => {
-      if (!entry.isMissing) addDate(entry.date);
+      if (!isMissingEntry(entry)) addDate(entry.date);
     });
 
     const mostCommonPeriod = Array.from(monthYearCounts.values())
@@ -408,7 +417,7 @@ export default function TimeTracker() {
     // Extract day numbers from date strings
     const daysWorked = new Set<number>();
     entries.forEach(entry => {
-      if (entry.isMissing) return;
+      if (isMissingEntry(entry)) return;
       // Extract day number from date string like "เสาร์ 30 เมษายนคม 2569"
       const dateParts = parseThaiDateParts(entry.date);
       const dayNumber = dateParts?.day || entry.dayNumber || getDayNumber(entry.date);
@@ -427,7 +436,7 @@ export default function TimeTracker() {
 
     // Find days with less than 12 hours
     const shortDays = entries.filter(entry => {
-      if (entry.isMissing) return false;
+      if (isMissingEntry(entry)) return false;
       const timeStr = entry.hoursWorked || '0:00';
       const totalSeconds = getDurationSeconds(timeStr);
       return totalSeconds < 12 * 3600 && totalSeconds > 0;
@@ -435,7 +444,6 @@ export default function TimeTracker() {
 
     // Calculate total hours
     const totalHours = entries.reduce((sum, entry) => {
-      if (entry.isMissing) return sum;
       const timeStr = entry.hoursWorked || '0:00';
       return sum + getDurationSeconds(timeStr) / 3600;
     }, 0);
@@ -445,11 +453,18 @@ export default function TimeTracker() {
       shortDays,
       totalHours
     });
+    return missingDates;
   };
 
   // Analyze and add missing date rows
   const analyzeDataAndAddMissing = (entries: TimeEntry[]) => {
-    const baseEntries = entries.filter(entry => !entry.isMissing);
+    const baseEntries = entries.filter(entry => !isMissingEntry(entry));
+    const firstRow = baseEntries[0];
+    const firstRowName = firstRow?.name || '';
+    const existingMissingEntries = new Map(
+      entries.filter(entry => isMissingEntry(entry) && entry.missingDateLabel)
+        .map(entry => [entry.missingDateLabel, entry])
+    );
     const reportPeriod = inferReportPeriod(baseEntries);
     const daysInMonth = getDaysInThaiMonth(reportPeriod);
     // Extract day numbers from date strings
@@ -462,33 +477,74 @@ export default function TimeTracker() {
       }
     });
 
-    // Find missing dates in the report month and create empty rows
-    const missingDates: string[] = [];
+    // Give each added date a different check-in time in the 07:50:00–07:59:59 range.
+    const usedStartTimes = new Set(entries.filter(entry => entry.id.startsWith('missing-')).map(entry => entry.startTime));
+    const availableStartTimes = Array.from({ length: 600 }, (_, second) =>
+      `07:${String(50 + Math.floor(second / 60)).padStart(2, '0')}:${String(second % 60).padStart(2, '0')}`
+    ).filter(time => !usedStartTimes.has(time));
+    const takeRandomStartTime = () => {
+      const index = Math.floor(Math.random() * availableStartTimes.length);
+      return availableStartTimes.splice(index, 1)[0];
+    };
+    const usedEndTimes = new Set(entries.filter(entry => entry.id.startsWith('missing-')).map(entry => entry.endTime));
+    const availableEndTimes = Array.from({ length: 601 }, (_, second) =>
+      `20:${String(Math.floor(second / 60)).padStart(2, '0')}:${String(second % 60).padStart(2, '0')}`
+    ).filter(time => !usedEndTimes.has(time));
+    const takeRandomEndTime = () => {
+      const index = Math.floor(Math.random() * availableEndTimes.length);
+      return availableEndTimes.splice(index, 1)[0];
+    };
+
+    // Find missing dates in the report month and create rows
     const missingEntries: TimeEntry[] = [];
     
     for (let day = 1; day <= daysInMonth; day++) {
       if (!daysWorked.has(day)) {
         const dateStr = getThaiDateLabel(day, reportPeriod);
-        missingDates.push(dateStr);
-        
-        // Create empty row for missing date
+
+        const existingEntry = existingMissingEntries.get(dateStr);
+        if (existingEntry) {
+          const startTime = existingEntry.startTime || takeRandomStartTime();
+          const endTime = existingEntry.endTime || takeRandomEndTime();
+          const completedEntry: TimeEntry = {
+            ...existingEntry,
+            name: existingEntry.name || firstRowName,
+            date: existingEntry.date || dateStr,
+            endDate: existingEntry.endDate || dateStr,
+            startTime,
+            endTime,
+            hoursWorked: calculateHours(startTime, endTime),
+            location: existingEntry.location || firstRow?.location || '',
+            latCheckin: existingEntry.latCheckin || firstRow?.latCheckin || '',
+            lonCheckin: existingEntry.lonCheckin || firstRow?.lonCheckin || '',
+            latCheckout: existingEntry.latCheckout || firstRow?.latCheckout || '',
+            lonCheckout: existingEntry.lonCheckout || firstRow?.lonCheckout || '',
+            workGroup: existingEntry.workGroup || firstRow?.workGroup || '',
+          };
+          completedEntry.isMissing = isMissingEntry(completedEntry);
+          missingEntries.push(completedEntry);
+          continue;
+        }
+
+        const startTime = takeRandomStartTime();
+        const endTime = takeRandomEndTime();
         missingEntries.push({
           id: `missing-${reportPeriod.year}-${reportPeriod.month}-${day}`,
-          date: '',
-          endDate: '',
+          date: dateStr,
+          endDate: dateStr,
           missingDateLabel: dateStr,
-          name: '',
-          startTime: '',
-          endTime: '',
-          hoursWorked: '',
-          location: '',
-          latCheckin: '',
-          lonCheckin: '',
-          latCheckout: '',
-          lonCheckout: '',
-          workGroup: '',
+          name: firstRowName,
+          startTime,
+          endTime,
+          hoursWorked: calculateHours(startTime, endTime),
+          location: firstRow?.location || '',
+          latCheckin: firstRow?.latCheckin || '',
+          lonCheckin: firstRow?.lonCheckin || '',
+          latCheckout: firstRow?.latCheckout || '',
+          lonCheckout: firstRow?.lonCheckout || '',
+          workGroup: firstRow?.workGroup || '',
           notes: '',
-          isMissing: true,
+          isMissing: !firstRowName,
           dayNumber: day
         });
       }
@@ -502,27 +558,7 @@ export default function TimeTracker() {
     });
 
     setTrackedData(combinedData);
-
-    // Find days with less than 12 hours
-    const shortDays = combinedData.filter(entry => {
-      if (entry.isMissing) return false;
-      const timeStr = entry.hoursWorked || '0:00';
-      const totalSeconds = getDurationSeconds(timeStr);
-      return totalSeconds < 12 * 3600 && totalSeconds > 0;
-    });
-
-    // Calculate total hours
-    const totalHours = combinedData.reduce((sum, entry) => {
-      if (entry.isMissing) return sum;
-      const timeStr = entry.hoursWorked || '0:00';
-      return sum + getDurationSeconds(timeStr) / 3600;
-    }, 0);
-
-    setAnalysis({
-      missingDates,
-      shortDays,
-      totalHours
-    });
+    analyzeData(combinedData);
   };
 
   // Start editing
@@ -542,7 +578,7 @@ export default function TimeTracker() {
 
     if (!previousEntry || !currentEntry) return;
 
-    const keepCurrentDate = Boolean(currentEntry.isMissing || editValues.isMissing);
+    const keepCurrentDate = isMissingEntry(currentEntry);
 
     setEditValues({
       ...editValues,
@@ -580,9 +616,9 @@ export default function TimeTracker() {
           updated.startTime,
           updated.endTime
         );
-        if (updated.isMissing && (updated.name || updated.date || updated.endDate || updated.startTime || updated.endTime)) {
-          updated.isMissing = false;
-          updated.missingDateLabel = '';
+        if (updated.isMissing) {
+          updated.isMissing = isMissingEntry(updated);
+          if (!updated.isMissing) updated.missingDateLabel = '';
         }
         return updated;
       }
@@ -591,7 +627,8 @@ export default function TimeTracker() {
 
     setEditingId(null);
     setEditValues({});
-    analyzeDataAndAddMissing(updatedData);
+    setTrackedData(updatedData);
+    analyzeData(updatedData);
   };
 
   // Cancel edit
@@ -636,13 +673,13 @@ export default function TimeTracker() {
 
     const headerRow = row(headers.map((header) => cell(header, 'Header')), 32);
     const dataRows = exportData.map((entry, idx) => {
-      const style = entry.isMissing ? 'Missing' : 'Data';
-      const hourStyle = entry.isMissing ? 'Missing' : 'Hours';
+      const style = isMissingEntry(entry) ? 'Missing' : 'Data';
+      const hourStyle = isMissingEntry(entry) ? 'Missing' : 'Hours';
       const values = [
         idx + 1,
         entry.name,
-        entry.isMissing ? (entry.missingDateLabel || '') : `${entry.date} ${entry.startTime}`.trim(),
-        entry.isMissing ? '' : `${entry.endDate} ${entry.endTime}`.trim(),
+        `${entry.date || entry.missingDateLabel || ''} ${entry.startTime}`.trim(),
+        `${entry.endDate} ${entry.endTime}`.trim(),
         formatTimeToThai(entry.hoursWorked || ''),
         entry.location,
         entry.latCheckin,
@@ -870,8 +907,8 @@ export default function TimeTracker() {
       const values = [
         index + 1,
         entry.name,
-        entry.isMissing ? (entry.missingDateLabel || '') : `${entry.date} ${entry.startTime}`.trim(),
-        entry.isMissing ? '' : `${entry.endDate} ${entry.endTime}`.trim(),
+        `${entry.date || entry.missingDateLabel || ''} ${entry.startTime}`.trim(),
+        `${entry.endDate} ${entry.endTime}`.trim(),
         formatTimeToThai(entry.hoursWorked || ''),
         entry.location,
         entry.latCheckin,
@@ -1007,10 +1044,10 @@ export default function TimeTracker() {
       const values = [
         idx + 1,
         entry.name,
-        entry.isMissing ? (entry.missingDateLabel || '') : entry.date,
-        entry.isMissing ? '' : entry.startTime,
-        entry.isMissing ? '' : entry.endDate,
-        entry.isMissing ? '' : entry.endTime,
+        entry.date || entry.missingDateLabel || '',
+        entry.startTime,
+        entry.endDate,
+        entry.endTime,
         formatTimeToThai(entry.hoursWorked || ''),
         entry.location,
         entry.latCheckin,
@@ -1021,7 +1058,7 @@ export default function TimeTracker() {
         entry.notes
       ];
 
-      return `<tr class="${entry.isMissing ? 'missing' : ''}">
+      return `<tr class="${isMissingEntry(entry) ? 'missing' : ''}">
         ${values.map((value, valueIdx) => `<td class="${valueIdx === 6 ? 'hours' : ''}">${escapeHtml(value)}</td>`).join('')}
       </tr>`;
     });
@@ -1168,6 +1205,22 @@ export default function TimeTracker() {
     printWindow.document.close();
   };
 
+  const firstRow = data.find(entry => !isMissingEntry(entry));
+  const missingDatesToShow = analysis?.missingDates.filter(date =>
+    !data.some(entry => !isMissingEntry(entry) && entry.date === date)
+  ) || [];
+  const unaddedMissingDates = missingDatesToShow.filter(date =>
+    !data.some(entry => isMissingEntry(entry) && entry.missingDateLabel === date &&
+      entry.date === date && entry.endDate === date && entry.startTime && entry.endTime && entry.hoursWorked &&
+      (!firstRow?.name || entry.name) &&
+      (!firstRow?.location || entry.location) &&
+      (!firstRow?.latCheckin || entry.latCheckin) &&
+      (!firstRow?.lonCheckin || entry.lonCheckin) &&
+      (!firstRow?.latCheckout || entry.latCheckout) &&
+      (!firstRow?.lonCheckout || entry.lonCheckout) &&
+      (!firstRow?.workGroup || entry.workGroup))
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="w-full px-4 py-6">
@@ -1248,13 +1301,25 @@ export default function TimeTracker() {
                   วันที่ขาด
                 </h3>
                 <p className="text-4xl font-bold text-yellow-600 drop-shadow">
-                  {analysis.missingDates.length}
+                  {missingDatesToShow.length}
                 </p>
                 <p className="text-xs text-yellow-700 mt-1 font-medium">วัน</p>
-                {showMissingDates && analysis.missingDates.length > 0 && (
+                {unaddedMissingDates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowMissingModal(true);
+                    }}
+                    className="mt-4 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700"
+                  >
+                    เพิ่มวันที่ขาดทั้งหมด
+                  </button>
+                )}
+                {showMissingDates && missingDatesToShow.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-yellow-300 max-h-32 overflow-y-auto">
                     <p className="text-xs font-bold text-yellow-800 mb-2">รายละเอียด:</p>
-                    {analysis.missingDates.map((date, idx) => (
+                    {missingDatesToShow.map((date, idx) => (
                       <p key={idx} className="text-xs text-yellow-700 py-1">• {date}</p>
                     ))}
                   </div>
@@ -1317,7 +1382,7 @@ export default function TimeTracker() {
                 </thead>
                 <tbody>
                   {data.map((entry, idx) => (
-                    <tr key={entry.id} className={`transition ${editingId === entry.id ? 'editing-row' : ''} ${entry.isMissing ? 'missing-row' : 'hover:bg-yellow-100'}`}>
+                    <tr key={entry.id} className={`transition ${editingId === entry.id ? 'editing-row' : ''} ${isMissingEntry(entry) ? 'missing-row' : 'hover:bg-yellow-100'}`}>
                       {editingId === entry.id ? (
                         <>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
@@ -1354,10 +1419,10 @@ export default function TimeTracker() {
                         <>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800 font-medium">{idx + 1}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-sm text-gray-800">{entry.name}</td>
-                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? (entry.missingDateLabel || '') : entry.date}</td>
-                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.startTime}</td>
-                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endDate}</td>
-                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.isMissing ? '' : entry.endTime}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.date || entry.missingDateLabel || ''}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.startTime}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.endDate}</td>
+                          <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.endTime}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-blue-100 font-bold text-center text-sm text-gray-800">{formatTimeToThai(entry.hoursWorked || '')}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.location}</td>
                           <td className="border border-gray-400 px-3 py-2 bg-yellow-50 text-center text-sm text-gray-800">{entry.latCheckin}</td>
@@ -1451,6 +1516,33 @@ export default function TimeTracker() {
           )}
         </div>
       </div>
+      {showMissingModal && unaddedMissingDates.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setShowMissingModal(false);
+        }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="missing-dates-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="missing-dates-title" className="text-xl font-bold text-gray-900">พบวันที่ขาด {unaddedMissingDates.length} วัน</h2>
+                <p className="mt-1 text-sm text-gray-600">ระบบจะคัดลอกชื่อ สถานที่ พิกัด และกลุ่มงานจากแถวแรก ใส่วันที่เข้าและออกเป็นวันเดียวกัน แล้วสุ่มเวลาเข้าและออกให้ไม่ซ้ำกัน</p>
+              </div>
+              <button type="button" onClick={() => setShowMissingModal(false)} aria-label="ปิด" className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <ul className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-gray-800">
+              {unaddedMissingDates.map(date => <li key={date} className="py-1">• {date}</li>)}
+            </ul>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button type="button" onClick={() => setShowMissingModal(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">ยกเลิก</button>
+              <button type="button" onClick={() => {
+                analyzeDataAndAddMissing(getCurrentData());
+                setShowMissingModal(false);
+              }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">เพิ่มวันที่ขาดทั้งหมด</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
